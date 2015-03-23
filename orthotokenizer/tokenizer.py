@@ -1,74 +1,75 @@
 # -*- coding: utf-8 -*-
 """
-Tokenizer of Unicode characters, grapheme clusters and tailored grapheme clusters (orthographies) given an orthography profile.
+Tokenizer of Unicode characters, grapheme clusters and tailored grapheme clusters (of orthographies) given an orthography profile.
 
 """
 from __future__ import unicode_literals, division, absolute_import, print_function
 import os
 import unicodedata
-
 import regex as re
 
 from orthotokenizer.tree import Tree
 from orthotokenizer.util import normalized_rows, normalized_string
 
-
 class Tokenizer(object):
     """
-    Class for orthographic parsing using orthography profiles as designed for the QLC
-    project.
+    Class for Unicode character and grapheme tokenization, with extended functionality for 
+    orthography-specific tokenization with orthography profiles, as designed for the QLC
+    project: http://quanthistling.info/.
 
     Parameters
     ----------
 
     orthography_profile : string (default = None)
-        Filename (without extension) of the a document source-specific orthography profile and rules file.
+        Filename of the a document source-specific orthography profile and rules file.
+
+    orthography_profile_rules : string (default = None)
+        Filename of the a document source-specific orthography profile rules file.
 
     Notes
     -----
-
-    The Tokenizer reads in an orthography profile and calls a helper
-    class to build a trie data structure, which stores the possible Unicode
-    character combinations that are specified in the orthography profile
-    and appear in the data source.
-
-    For example, an orthography profile might specify that in source X
-    <uu> is a single grapheme (Unicode parlance: tailored grapheme) and
-    thererfore it should be chunked as so. Given an orthography profile and
-    some data to parse, the process would look like this:
-
-    input string example: uubo uubo
-    output string example: uu b o # uu b o
-
-    See also the test_orthography script in lingpy/scripts/orthography/
-
-    Additionally, the Tokenizer provides functionality to transform graphemes
-    into associated character(s) specified in additional columns in the orthography
-    profile. A dictionary is created that keeps a mapping between source-specific
-    graphemes and their counterparts (e.g. an IPA column in the orthography profile).
-
-    The tokenizer can also be used for pure Unicode character and grapheme
+    The tokenizer can be used for pure Unicode character and grapheme
     tokenization, i.e. it uses the Unicode standard grapheme parsing rules, as
     implemented in the Python regex package by Matthew Barnett, to do basic tokenization
     with the "\X" grapheme regular expression match. This grapheme match
     combines one or more Combining Diacritical Marks to their base character.
-    These are called "Grapheme clusters" in Unicode parlance. With these functions
-    the Tokenizer is meant to do basic rudimentary parsing for things like getting
-    an additional unigram model (segments and their counts) in an input data source.
+    These are called "grapheme clusters" in Unicode parlance. With these functions
+    the Tokenizer is meant to do basic rudimentary parsing for things like generating
+    unigram models (segments and their counts) from input data.
 
-    An additional method (in its infancy) called combine_modifiers handles the
-    case where there are Unicode Spacing Modifier Letters, which are not explicitly
+    The Tokenizer reads in an orthography profile and calls a helper
+    class to build a trie data structure, which stores the possible Unicode
+    character combinations that are specified in the orthography profile
+    (i.e. tailored grapheme clusters) that appear in the data source.
+
+    For example, an orthography profile might specify that in source X
+    <uu> is a single grapheme (Unicode parlance: tailored grapheme) and
+    thererfore it should be chunked as so. Given an orthography profile and
+    some data to tokenize, the process would look like this:
+
+    input string example: uubo uubo
+    output string example: uu b o # uu b o
+
+    See also the test orthography profile and rules in the test directory.
+
+    An additional method "combine_modifiers" handles the case where there are 
+    Unicode Spacing Modifier Letters, which are not explicitly
     combined to their base character in the Unicode Standard. These graphemes
     are called "Tailored grapheme clusters" in Unicode. For more information
     see the Unicode Standard Annex #29: Unicode Text Segmentation:
 
     http://www.unicode.org/reports/tr29/
 
+    Additionally, the Tokenizer provides functionality to transform graphemes
+    into associated character(s) specified in additional columns in the orthography
+    profile. A dictionary is created that keeps a mapping between source-specific
+    graphemes and their counterparts (e.g. an IPA column in the orthography profile).
+
     Lastly, the Tokenizer can be used to transformation as specified in an
     orthography rules file. These transformations are specified in a separate
     file from the orthography profile (that specifics the document specific graphemes,
     and possibly their IPA counterparts) and the orthography rules should
-    be applied to the output of an OrthographyParser.
+    be applied to the output of a grapheme tokenization.
 
     In an orthography rules file, rules are given in order in regular
     expressions, e.g. this rule replaces a vowel followed by an <n>
@@ -144,7 +145,7 @@ class Tokenizer(object):
         Parameters
         ----------
         string : str
-            A Unicode string to be parsed into graphemes.
+            A Unicode string to be tokenized into graphemes.
 
         Returns
         -------
@@ -169,7 +170,7 @@ class Tokenizer(object):
         Parameters
         ----------
         string : str
-            A Unicode string to be parsed into graphemes.
+            A Unicode string to be tokenized into graphemes.
 
         Returns
         -------
@@ -191,12 +192,12 @@ class Tokenizer(object):
         Parameters
         ----------
         string : str
-            The str to be parsed and formatted.
+            The str to be tokenized and formatted.
 
         Returns
         -------
         result : str
-            The result of the parsed and QLC formatted str.
+            The result of the tokenized and QLC formatted str.
 
         """
         # if no orthography profile is specified, simply return
@@ -227,7 +228,7 @@ class Tokenizer(object):
         Parameters
         ----------
         string : str
-            The input string to be parsed.
+            The input string to be tokenized.
 
         conversion : str (default = "graphemes")
             The label of the column to transform to. Default it to tokenize with orthography profile.
@@ -238,6 +239,8 @@ class Tokenizer(object):
             Result of the transformation.
 
         """
+        column = column.lower()
+
         # This method can't be called unless an orthography profile was specified.
         if not self.orthography_profile:
             raise Exception("This method only works when an orthography profile is specified.")
@@ -302,12 +305,12 @@ class Tokenizer(object):
 
     def rules(self, string):
         """
-        Function to parse input string and return output of str with ortho rules applied.
+        Function to tokenize input string and return output of str with ortho rules applied.
 
         Parameters
         ----------
         string : str
-            The input string to be parsed.
+            The input string to be tokenized.
 
         Returns
         -------
@@ -338,51 +341,65 @@ class Tokenizer(object):
 
     def tokenize_ipa(self, string):
         """
-        Experimental method for tokenizing IPA.
+        Work in progress method for tokenizing IPA.
         """
         return self.combine_modifiers(self.grapheme_clusters(string))
 
     def combine_modifiers(self, string):
         """
         Given a string that is space-delimited on Unicode grapheme clusters,
-        group Unicode modifier letters with their preceding base characters.
+        group Unicode modifier letters with their preceding base characters,
+        deal with tie bars, etc.
 
         Parameters
         ----------
         string : str
             A Unicode string tokenized into grapheme clusters to be tokenized into simple IPA.
 
-        .. todo:: check if we need to apply NDF after string is parsed
-
         """
         result = []
         graphemes = string.split()
         temp = ""
         count = len(graphemes)
-
         for grapheme in reversed(graphemes):
             count -= 1
-            if len(grapheme) == 1 and unicodedata.category(grapheme) == "Lm":
+            if len(grapheme) == 1 and unicodedata.category(grapheme) == "Lm" and not ord(grapheme) in [712, 716]:
                 temp = grapheme+temp
-                # hack for the cases where a space modifier is the first character in the str
+                # hack for the cases where a space modifier is the first character in the string
                 if count == 0:
                     result[-1] = temp+result[-1]
                 continue
+            # catch and repair stress marks
+            if len(grapheme) == 1 and ord(grapheme) in [712, 716]:
+                result[-1] = grapheme+result[-1]
+                temp = ""
+                continue
+
+            # combine contour tone marks (non-accents)
+            if len(grapheme) == 1 and unicodedata.category(grapheme) == "Sk":
+                if len(result) == 0:
+                    result.append(grapheme)
+                    temp = ""
+                    continue
+                else:
+                    if unicodedata.category(result[-1][0]) == "Sk":
+                        result[-1] = grapheme+result[-1]
+                        temp = ""
+                        continue
 
             result.append(grapheme+temp)
             temp = ""
 
-        # check for tie bars
+        # last check for tie bars
         segments = result[::-1]
-
         i = 0
         r = []
         while i < len(segments):
+            # tie bars
             if ord(segments[i][-1]) in [865, 860]:
                 r.append(segments[i]+segments[i+1])
                 i = i+2
             else:
                 r.append(segments[i])
                 i += 1
-
         return " ".join(r)
